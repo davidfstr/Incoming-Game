@@ -1,0 +1,1 @@
+main = image 67 55 "assets/turret.png"

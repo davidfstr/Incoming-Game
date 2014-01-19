@@ -1,2 +1,6 @@
 # OS X
 .DS_Store
+
+# elm-server
+build
+cache
