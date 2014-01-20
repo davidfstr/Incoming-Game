@@ -11,8 +11,7 @@ type GameState = { sprites : [Sprite],
 type Sprite = { position : Point, stype : SpriteType }
 type SpriteType = { imagePath : String, size : Size, velocity : Point }
 
-type Input = { timedelta : Float,
-               timeSinceLastFrame : Float,
+type Input = { timeSinceLastFrame : Float,
                arrows : { x : Int, y : Int },
                randomBombX : Float }
 
@@ -24,9 +23,6 @@ canvasSize = { w = 640, h = 480 }
 -- Target FPS. Browsers seem to give 25fps max.
 desiredFps = 20
 
--- Overall speed of the game. All other speed values are divided by this.
-gameSlowness = 20
-
 initialGameState : GameState
 initialGameState = let
                        playerSprite = { position = { x = div2 (canvasSize.w - playerSpriteType.size.w),
@@ -36,8 +32,8 @@ initialGameState = let
                        { sprites = [ playerSprite ],
                          timeUntilNextBomb = 0 }
 
-playerSpeed = 8
-bombSpeed = 2
+playerSpeed = 400 / 1000 -- px/sec
+bombSpeed = 100 / 1000   -- px/sec
 
 timeBetweenBombs = 1000 -- ms
 
@@ -80,7 +76,7 @@ inputS : Signal Input
 inputS =
     let
         timeSinceLastFrameS = fps desiredFps
-        arrowsS = Keyboard.arrows
+        arrowsS = Keyboard.wasd
         randomBombXS = 
             let
                 maxBombX = canvasSize.w - bombSpriteType.size.w
@@ -89,8 +85,7 @@ inputS =
                 --       Random.float gives a runtime error.
                 lift toFloat (Random.range 0 maxBombX timeSinceLastFrameS)
     in
-        lift3 (\dt a rbx -> { timedelta = dt / gameSlowness,
-                              timeSinceLastFrame = dt,
+        lift3 (\dt a rbx -> { timeSinceLastFrame = dt,
                               arrows = a,
                               randomBombX = rbx }) timeSinceLastFrameS arrowsS randomBombXS
 
@@ -133,16 +128,16 @@ updateSprite input s =
     if | s.stype == playerSpriteType ->
             let
                 playerVelocity = { x = (toFloat input.arrows.x) * playerSpeed, y = 0 }
-                newPosition = { x = s.position.x + (playerVelocity.x * input.timedelta),
-                                y = s.position.y + (playerVelocity.y * input.timedelta) }
+                newPosition = { x = s.position.x + (playerVelocity.x * input.timeSinceLastFrame),
+                                y = s.position.y + (playerVelocity.y * input.timeSinceLastFrame) }
                 maxX = toFloat (canvasSize.w - playerSpriteType.size.w)
                 newPositionClamped = { x = clamp 0 maxX newPosition.x,
                                        y = newPosition.y }
             in
                 { s | position <- newPositionClamped }
        | otherwise ->
-            { s | position <- { x = s.position.x + (s.stype.velocity.x * input.timedelta),
-                                y = s.position.y + (s.stype.velocity.y * input.timedelta) } }
+            { s | position <- { x = s.position.x + (s.stype.velocity.x * input.timeSinceLastFrame),
+                                y = s.position.y + (s.stype.velocity.y * input.timeSinceLastFrame) } }
 
 -- UTILITY
 
