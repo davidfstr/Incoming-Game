@@ -34,6 +34,7 @@ initialGameState = let
 
 playerSpeed = 400 / 1000 -- px/sec
 bombSpeed = 100 / 1000   -- px/sec
+shotSpeed = 300 / 1000   -- px/sec
 
 timeBetweenBombs = 1000 -- ms
 
@@ -44,6 +45,10 @@ playerSpriteType =  { imagePath = "assets/turret.png",
 bombSpriteType =    { imagePath = "assets/bomb.png",
                       size = { w = 22, h = 44 },
                       velocity = { x = 0, y = -bombSpeed } }
+
+shotSpriteType =    { imagePath = "assets/shot.png",
+                      size = { w = 12, h = 20 },
+                      velocity = { x = 0, y = shotSpeed } }
 
 -- MAIN
 
@@ -95,18 +100,17 @@ updateGame : Input -> GameState -> GameState
 updateGame input gameState = 
     let
         afterSpritesMoved = { gameState | sprites <- map (updateSprite input) gameState.sprites }
-        afterBombsDie =
+        afterOffscreenSpritesDie =
             let
                 prevState = afterSpritesMoved
                 spriteShouldDie s = 
-                    (s.stype == bombSpriteType) && 
-                    (s.position.y < 0)
+                    (s.position.y < 0) || (s.position.y > (toFloat canvasSize.h))
                 spriteShouldLive s = not (spriteShouldDie s)
             in
                 { gameState | sprites <- filter spriteShouldLive prevState.sprites }
         afterBombSpawn = 
             let
-                prevState = afterBombsDie
+                prevState = afterOffscreenSpritesDie
                 shouldSpawnBomb = (prevState.timeUntilNextBomb <= 0)
             in
                 if | shouldSpawnBomb ->
@@ -119,8 +123,27 @@ updateGame input gameState =
                                           timeUntilNextBomb <- timeBetweenBombs }
                    | otherwise ->
                         { prevState | timeUntilNextBomb <- prevState.timeUntilNextBomb - input.timeSinceLastFrame }
+        afterShotSpawn =
+            let
+                prevState = afterBombSpawn
+                shouldSpawnShot = (input.arrows.y == 1)
+            in
+                if | shouldSpawnShot ->
+                        let newShotSprite =
+                            let
+                                findPlayer gameState =
+                                    head (filter (\s -> s.stype == playerSpriteType) gameState.sprites)
+                                player = findPlayer prevState
+                                shotX = player.position.x + (div2 (playerSpriteType.size.w - shotSpriteType.size.w))
+                                shotY = player.position.y
+                            in
+                                { stype = shotSpriteType, position = { x = shotX, y = shotY } }
+                        in
+                            { prevState | sprites <- newShotSprite :: prevState.sprites }
+                   | otherwise ->
+                        prevState
     in
-        afterBombSpawn
+        afterShotSpawn
         
 
 updateSprite : Input -> Sprite -> Sprite
