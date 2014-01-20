@@ -89,10 +89,12 @@ inputS =
                 -- NOTE: Using Random.float instead of Random.range because
                 --       Random.float gives a runtime error.
                 lift toFloat (Random.range 0 maxBombX timeSinceLastFrameS)
+        
+        liveInputS = lift3 (\dt a rbx -> 
+            { timeSinceLastFrame = dt, arrows = a, randomBombX = rbx })
+            timeSinceLastFrameS arrowsS randomBombXS
     in
-        lift3 (\dt a rbx -> { timeSinceLastFrame = dt,
-                              arrows = a,
-                              randomBombX = rbx }) timeSinceLastFrameS arrowsS randomBombXS
+        sampleOn timeSinceLastFrameS liveInputS
 
 -- UPDATE
 
