@@ -175,7 +175,7 @@ updateGame input lastGameState =
                                     head (filter (\s -> s.stype == playerSpriteType) gameState.sprites)
                                 player = findPlayer prevState
                                 shotX = player.position.x + (div2 (playerSpriteType.size.w - shotSpriteType.size.w))
-                                shotY = player.position.y
+                                shotY = player.position.y + (toFloat playerSpriteType.size.h)
                             in
                                 { stype = shotSpriteType, position = { x = shotX, y = shotY } }
                         in
