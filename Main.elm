@@ -97,17 +97,57 @@ inputS =
 -- UPDATE
 
 updateGame : Input -> GameState -> GameState
-updateGame input gameState = 
+updateGame input lastGameState = 
     let
-        afterSpritesMoved = { gameState | sprites <- map (updateSprite input) gameState.sprites }
-        afterOffscreenSpritesDie =
+        afterSpritesMoved = 
+            let
+                prevState = lastGameState
+            in
+                { prevState | sprites <- map (updateSprite input) prevState.sprites }
+        afterCollisions =
             let
                 prevState = afterSpritesMoved
+                
+                spriteShouldDie s1 = 
+                    any (\s2 -> spritesCollide s1 s2 &&
+                                spritesHaveTypes shotSpriteType bombSpriteType s1 s2
+                        ) prevState.sprites
+                spriteShouldLive s = not (spriteShouldDie s)
+                
+                spritesHaveTypes t1 t2 s1 s2 =
+                    (s1.stype == t1 && s2.stype == t2) ||
+                    (s1.stype == t2 && s2.stype == t1)
+                
+                spritesCollide s1 s2 = 
+                    rectsCollide (spriteRect s1) (spriteRect s2)
+                
+                spriteRect s =
+                    { x1 = s.position.x,
+                      y1 = s.position.y,
+                      x2 = s.position.x + (toFloat s.stype.size.w),
+                      y2 = s.position.y + (toFloat s.stype.size.h) }
+                
+                rectsCollide r1 r2 =
+                    rectIsValid (rectIntersection r1 r2)
+                
+                rectIntersection r1 r2 =
+                    { x1 = max r1.x1 r2.x1,
+                      x2 = min r1.x2 r2.x2,
+                      y1 = max r1.y1 r2.y1,
+                      y2 = min r1.y2 r2.y2 }
+                
+                rectIsValid r =
+                    (r.x1 <= r.x2) && (r.y1 <= r.y2)
+            in
+                { prevState | sprites <- filter spriteShouldLive prevState.sprites }
+        afterOffscreenSpritesDie =
+            let
+                prevState = afterCollisions
                 spriteShouldDie s = 
                     (s.position.y < 0) || (s.position.y > (toFloat canvasSize.h))
                 spriteShouldLive s = not (spriteShouldDie s)
             in
-                { gameState | sprites <- filter spriteShouldLive prevState.sprites }
+                { prevState | sprites <- filter spriteShouldLive prevState.sprites }
         afterBombSpawn = 
             let
                 prevState = afterOffscreenSpritesDie
