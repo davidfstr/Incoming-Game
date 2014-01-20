@@ -12,6 +12,8 @@ type SpriteType = { imagePath : String, size : Size, velocity : Point }
 canvasSize : Size
 canvasSize = { w = 640, h = 480 }
 
+desiredFps = 20
+
 background : Form
 background = filled blue (rect (toFloat canvasSize.w) (toFloat canvasSize.h))
 
@@ -29,7 +31,14 @@ playerSpriteType = { imagePath = "assets/turret.png",
 
 -- METHODS
 
-main = collage canvasSize.w canvasSize.h (background :: (map render initialGameState.sprites))
+main = let
+           deltaS = lift (\t -> t / 20) (fps desiredFps)
+           gameStateS = foldp updateGame initialGameState (lift floor deltaS)
+       in
+           lift renderGame gameStateS
+
+renderGame : GameState -> Element
+renderGame gameState = collage canvasSize.w canvasSize.h (background :: (map render gameState.sprites))
 
 render : Sprite -> Form
 render s = let
@@ -40,6 +49,13 @@ render s = let
                offsetFromCenter' = (toFloat offsetFromCenter.x, toFloat offsetFromCenter.y)
            in
                move offsetFromCenter' (toForm (image sz.w sz.h s.stype.imagePath))
+
+updateGame : Int -> GameState -> GameState
+updateGame delta gameState = { sprites = map (update delta) gameState.sprites }
+
+update : Int -> Sprite -> Sprite
+update delta s = { s | position <- { x = s.position.x + delta,
+                                     y = s.position.y } }
 
 -- UTILITY
 
