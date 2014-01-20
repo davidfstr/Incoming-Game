@@ -17,10 +17,11 @@ type Input = { timedelta : Int,
 canvasSize : Size
 canvasSize = { w = 640, h = 480 }
 
+-- Target FPS. Browsers seem to give 25fps max.
 desiredFps = 20
 
-background : Form
-background = filled blue (rect (toFloat canvasSize.w) (toFloat canvasSize.h))
+-- Overall speed of the game. All other speed values are divided by this.
+gameSlowness = 20
 
 initialGameState : GameState
 initialGameState = let
@@ -30,15 +31,13 @@ initialGameState = let
                    in
                        { sprites = [ playerSprite ] }
 
-gameSlowness = 20
-
 playerSpriteType = { imagePath = "assets/turret.png",
                      size = { w = 68, h = 56 },
                      velocity = { x = 0, y = 0 } }
 
 playerSpeed = 5
 
--- METHODS
+-- MAIN
 
 main = let
            timedeltaS = lift (\t -> floor (t / gameSlowness)) (fps desiredFps)
@@ -50,8 +49,13 @@ main = let
        in
            lift renderGame gameStateS
 
+-- RENDER
+
 renderGame : GameState -> Element
 renderGame gameState = collage canvasSize.w canvasSize.h (background :: (map render gameState.sprites))
+
+background : Form
+background = filled blue (rect (toFloat canvasSize.w) (toFloat canvasSize.h))
 
 render : Sprite -> Form
 render s = let
@@ -62,6 +66,8 @@ render s = let
                offsetFromCenter' = (toFloat offsetFromCenter.x, toFloat offsetFromCenter.y)
            in
                move offsetFromCenter' (toForm (image sz.w sz.h s.stype.imagePath))
+
+-- UPDATE
 
 updateGame : Input -> GameState -> GameState
 updateGame input gameState = 
