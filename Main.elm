@@ -1,16 +1,20 @@
 import Keyboard
+import Random
 
 -- TYPES
 
 type Point = { x : Float, y : Float }
 type Size = { w : Int, h : Int }
 
-type GameState = { sprites : [Sprite] }
+type GameState = { sprites : [Sprite],
+                   timeUntilNextBomb : Float }
 type Sprite = { position : Point, stype : SpriteType }
 type SpriteType = { imagePath : String, size : Size, velocity : Point }
 
 type Input = { timedelta : Float,
-               arrows : { x : Int, y : Int } }
+               timeSinceLastFrame : Float,
+               arrows : { x : Int, y : Int },
+               randomBombX : Float }
 
 -- CONSTANTS
 
@@ -29,22 +33,25 @@ initialGameState = let
                                                      y = 0 },
                                         stype = playerSpriteType }
                    in
-                       { sprites = [ playerSprite ] }
-
-playerSpriteType = { imagePath = "assets/turret.png",
-                     size = { w = 68, h = 56 },
-                     velocity = { x = 0, y = 0 } }
+                       { sprites = [ playerSprite ],
+                         timeUntilNextBomb = 0 }
 
 playerSpeed = 8
+bombSpeed = 2
+
+timeBetweenBombs = 1000 -- ms
+
+playerSpriteType =  { imagePath = "assets/turret.png",
+                      size = { w = 56, h = 68 },
+                      velocity = { x = 0, y = 0 } }
+
+bombSpriteType =    { imagePath = "assets/bomb.png",
+                      size = { w = 22, h = 44 },
+                      velocity = { x = 0, y = -bombSpeed } }
 
 -- MAIN
 
 main = let
-           timedeltaS = lift (\t -> t / gameSlowness) (fps desiredFps)
-           arrowsS = Keyboard.arrows
-           inputS = lift2 (\t a -> { timedelta = t,
-                                     arrows = a }
-                          ) timedeltaS arrowsS
            gameStateS = foldp updateGame initialGameState inputS
        in
            lift renderGame gameStateS
@@ -67,14 +74,59 @@ render s = let
            in
                move offsetFromCenter' (toForm (image sz.w sz.h s.stype.imagePath))
 
+-- INPUT
+
+inputS : Signal Input
+inputS =
+    let
+        timeSinceLastFrameS = fps desiredFps
+        arrowsS = Keyboard.arrows
+        randomBombXS = 
+            let
+                maxBombX = canvasSize.w - bombSpriteType.size.w
+            in
+                -- NOTE: Using Random.float instead of Random.range because
+                --       Random.float gives a runtime error.
+                lift toFloat (Random.range 0 maxBombX timeSinceLastFrameS)
+    in
+        lift3 (\dt a rbx -> { timedelta = dt / gameSlowness,
+                              timeSinceLastFrame = dt,
+                              arrows = a,
+                              randomBombX = rbx }) timeSinceLastFrameS arrowsS randomBombXS
+
 -- UPDATE
 
 updateGame : Input -> GameState -> GameState
 updateGame input gameState = 
     let
-        afterSpritesMoved = { sprites = map (updateSprite input) gameState.sprites }
+        afterSpritesMoved = { gameState | sprites <- map (updateSprite input) gameState.sprites }
+        afterBombsDie =
+            let
+                prevState = afterSpritesMoved
+                spriteShouldDie s = 
+                    (s.stype == bombSpriteType) && 
+                    (s.position.y < 0)
+                spriteShouldLive s = not (spriteShouldDie s)
+            in
+                { gameState | sprites <- filter spriteShouldLive prevState.sprites }
+        afterBombSpawn = 
+            let
+                prevState = afterBombsDie
+                shouldSpawnBomb = (prevState.timeUntilNextBomb <= 0)
+            in
+                if | shouldSpawnBomb ->
+                        let
+                            newBombSprite = { stype = bombSpriteType,
+                                              position = { x = input.randomBombX,
+                                                           y = toFloat (canvasSize.h - bombSpriteType.size.h) } }
+                        in
+                            { prevState | sprites <- newBombSprite :: prevState.sprites,
+                                          timeUntilNextBomb <- timeBetweenBombs }
+                   | otherwise ->
+                        { prevState | timeUntilNextBomb <- prevState.timeUntilNextBomb - input.timeSinceLastFrame }
     in
-        afterSpritesMoved
+        afterBombSpawn
+        
 
 updateSprite : Input -> Sprite -> Sprite
 updateSprite input s = 
@@ -96,6 +148,3 @@ updateSprite input s =
 
 div2 : Int -> Float
 div2 x = (toFloat x) / 2
-
-clamp : Float -> Float -> Float -> Float
-clamp minV maxV value = (min maxV (max minV value))
