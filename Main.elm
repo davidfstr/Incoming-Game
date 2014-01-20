@@ -35,7 +35,7 @@ playerSpriteType = { imagePath = "assets/turret.png",
                      size = { w = 68, h = 56 },
                      velocity = { x = 0, y = 0 } }
 
-playerSpeed = 5
+playerSpeed = 8
 
 -- MAIN
 
@@ -81,9 +81,13 @@ updateSprite input s =
     if | s.stype == playerSpriteType ->
             let
                 playerVelocity = { x = (toFloat input.arrows.x) * playerSpeed, y = 0 }
+                newPosition = { x = s.position.x + (playerVelocity.x * input.timedelta),
+                                y = s.position.y + (playerVelocity.y * input.timedelta) }
+                maxX = toFloat (canvasSize.w - playerSpriteType.size.w)
+                newPositionClamped = { x = clamp 0 maxX newPosition.x,
+                                       y = newPosition.y }
             in
-                { s | position <- { x = s.position.x + (playerVelocity.x * input.timedelta),
-                                    y = s.position.y + (playerVelocity.y * input.timedelta) } }
+                { s | position <- newPositionClamped }
        | otherwise ->
             { s | position <- { x = s.position.x + (s.stype.velocity.x * input.timedelta),
                                 y = s.position.y + (s.stype.velocity.y * input.timedelta) } }
@@ -92,3 +96,6 @@ updateSprite input s =
 
 div2 : Int -> Float
 div2 x = (toFloat x) / 2
+
+clamp : Float -> Float -> Float -> Float
+clamp minV maxV value = (min maxV (max minV value))
