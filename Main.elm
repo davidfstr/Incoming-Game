@@ -2,15 +2,15 @@ import Keyboard
 
 -- TYPES
 
-type Point = { x : Int, y : Int }
+type Point = { x : Float, y : Float }
 type Size = { w : Int, h : Int }
 
 type GameState = { sprites : [Sprite] }
 type Sprite = { position : Point, stype : SpriteType }
 type SpriteType = { imagePath : String, size : Size, velocity : Point }
 
-type Input = { timedelta : Int,
-               arrows : Point }
+type Input = { timedelta : Float,
+               arrows : { x : Int, y : Int } }
 
 -- CONSTANTS
 
@@ -40,7 +40,7 @@ playerSpeed = 5
 -- MAIN
 
 main = let
-           timedeltaS = lift (\t -> floor (t / gameSlowness)) (fps desiredFps)
+           timedeltaS = lift (\t -> t / gameSlowness) (fps desiredFps)
            arrowsS = Keyboard.arrows
            inputS = lift2 (\t a -> { timedelta = t,
                                      arrows = a }
@@ -63,7 +63,7 @@ render s = let
                pos = s.position
                offsetFromCenter = { x = pos.x - (div2 canvasSize.w) + (div2 sz.w),
                                     y = pos.y - (div2 canvasSize.h) + (div2 sz.h) }
-               offsetFromCenter' = (toFloat offsetFromCenter.x, toFloat offsetFromCenter.y)
+               offsetFromCenter' = (offsetFromCenter.x, offsetFromCenter.y)
            in
                move offsetFromCenter' (toForm (image sz.w sz.h s.stype.imagePath))
 
@@ -80,7 +80,7 @@ updateSprite : Input -> Sprite -> Sprite
 updateSprite input s = 
     if | s.stype == playerSpriteType ->
             let
-                playerVelocity = { x = input.arrows.x * playerSpeed, y = 0 }
+                playerVelocity = { x = (toFloat input.arrows.x) * playerSpeed, y = 0 }
             in
                 { s | position <- { x = s.position.x + (playerVelocity.x * input.timedelta),
                                     y = s.position.y + (playerVelocity.y * input.timedelta) } }
@@ -90,5 +90,5 @@ updateSprite input s =
 
 -- UTILITY
 
-div2 : Int -> Int
-div2 x = floor ((toFloat x) / 2)
+div2 : Int -> Float
+div2 x = (toFloat x) / 2
