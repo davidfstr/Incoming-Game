@@ -8,7 +8,10 @@ type Size = { w : Int, h : Int }
 
 type GameState = { sprites : [Sprite],
                    timeUntilNextBomb : Float }
-type Sprite = { position : Point, stype : SpriteType }
+-- NOTE: The 'timeToLive' field only applies to explosion-typed sprites.
+--       Unfortunately the current code structure isn't well suited to
+--       having extra fields for only certain sprites.
+type Sprite = { position : Point, stype : SpriteType, timeToLive : Float }
 type SpriteType = { imagePath : String, size : Size, velocity : Point }
 
 type Input = { timeSinceLastFrame : Float,
@@ -27,7 +30,8 @@ initialGameState : GameState
 initialGameState = let
                        playerSprite = { position = { x = div2 (canvasSize.w - playerSpriteType.size.w),
                                                      y = 0 },
-                                        stype = playerSpriteType }
+                                        stype = playerSpriteType,
+                                        timeToLive = immortalTimeToLive }
                    in
                        { sprites = [ playerSprite ],
                          timeUntilNextBomb = 0 }
@@ -37,6 +41,9 @@ bombSpeed = 100 / 1000   -- px/sec
 shotSpeed = 300 / 1000   -- px/sec
 
 timeBetweenBombs = 1000 -- ms
+
+immortalTimeToLive = -1
+explosionInitialTimeToLive = 300 -- ms
 
 playerSpriteType =  { imagePath = "assets/turret.png",
                       size = { w = 56, h = 68 },
@@ -49,6 +56,11 @@ bombSpriteType =    { imagePath = "assets/bomb.png",
 shotSpriteType =    { imagePath = "assets/shot.png",
                       size = { w = 12, h = 20 },
                       velocity = { x = 0, y = shotSpeed } }
+
+explosionSpriteType =
+                    { imagePath = "assets/explosion.png",
+                      size = { w = 85, h = 85 },
+                      velocity = { x = 0, y = 0 } }
 
 -- MAIN
 
@@ -116,6 +128,23 @@ updateGame input lastGameState =
                         ) prevState.sprites
                 spriteShouldLive s = not (spriteShouldDie s)
                 
+                newExplosions = 
+                    let 
+                        makeExplosionIfDead s =
+                            if | spriteShouldDie s && s.stype == bombSpriteType
+                                           -> Just (makeExplosionFor s)
+                               | otherwise -> Nothing
+                        
+                        makeExplosionFor : Sprite -> Sprite
+                        makeExplosionFor s =
+                            { stype = explosionSpriteType,
+                                           -- Center explosion on tip of bomb
+                              position = { x = s.position.x + (div2 (s.stype.size.w - explosionSpriteType.size.w)),
+                                           y = s.position.y - (div2 explosionSpriteType.size.h)},
+                              timeToLive = explosionInitialTimeToLive }
+                    in
+                        filterJust (map makeExplosionIfDead prevState.sprites)
+                
                 spritesHaveTypes t1 t2 s1 s2 =
                     (s1.stype == t1 && s2.stype == t2) ||
                     (s1.stype == t2 && s2.stype == t1)
@@ -141,7 +170,8 @@ updateGame input lastGameState =
                 rectIsValid r =
                     (r.x1 <= r.x2) && (r.y1 <= r.y2)
             in
-                { prevState | sprites <- filter spriteShouldLive prevState.sprites }
+                { prevState | sprites <- newExplosions ++
+                                         filter spriteShouldLive prevState.sprites }
         afterOffscreenSpritesDie =
             let
                 prevState = afterCollisions
@@ -159,7 +189,8 @@ updateGame input lastGameState =
                         let
                             newBombSprite = { stype = bombSpriteType,
                                               position = { x = input.randomBombX,
-                                                           y = toFloat (canvasSize.h - bombSpriteType.size.h) } }
+                                                           y = toFloat (canvasSize.h - bombSpriteType.size.h) },
+                                              timeToLive = immortalTimeToLive }
                         in
                             { prevState | sprites <- newBombSprite :: prevState.sprites,
                                           timeUntilNextBomb <- timeBetweenBombs }
@@ -179,7 +210,9 @@ updateGame input lastGameState =
                                 shotX = player.position.x + (div2 (playerSpriteType.size.w - shotSpriteType.size.w))
                                 shotY = player.position.y + (toFloat playerSpriteType.size.h)
                             in
-                                { stype = shotSpriteType, position = { x = shotX, y = shotY } }
+                                { stype = shotSpriteType,
+                                  position = { x = shotX, y = shotY },
+                                  timeToLive = immortalTimeToLive }
                         in
                             { prevState | sprites <- newShotSprite :: prevState.sprites }
                    | otherwise ->
@@ -208,3 +241,10 @@ updateSprite input s =
 
 div2 : Int -> Float
 div2 x = (toFloat x) / 2
+
+filterJust : [Maybe a] -> [a]
+filterJust maybes =
+    case maybes of
+        Just x :: rest  -> x :: filterJust rest
+        Nothing :: rest -> filterJust rest
+        []              -> []
