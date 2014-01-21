@@ -84,8 +84,16 @@ render s = let
                offsetFromCenter = { x = pos.x - (div2 canvasSize.w) + (div2 sz.w),
                                     y = pos.y - (div2 canvasSize.h) + (div2 sz.h) }
                offsetFromCenter' = (offsetFromCenter.x, offsetFromCenter.y)
+               
+               opacity = if | s.timeToLive == immortalTimeToLive
+                                -> 1.0
+                            | otherwise
+                                   -- HACK: The only type of non-immortal sprite
+                                   --       is currently the explosion, so just
+                                   --       hardcode its maximum TTL here.
+                                -> (s.timeToLive / explosionInitialTimeToLive)
            in
-               move offsetFromCenter' (toForm (image sz.w sz.h s.stype.imagePath))
+               alpha opacity (move offsetFromCenter' (toForm (image sz.w sz.h s.stype.imagePath)))
 
 -- INPUT
 
