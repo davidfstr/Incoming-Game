@@ -113,9 +113,20 @@ inputS =
 updateGame : Input -> GameState -> GameState
 updateGame input lastGameState = 
     let
-        afterSpritesMoved = 
+        afterExplosionsAge =
             let
                 prevState = lastGameState
+                
+                ageOrKillSprite : Sprite -> Maybe Sprite
+                ageOrKillSprite s =
+                    if | (s.timeToLive == immortalTimeToLive)       -> Just s
+                       | (s.timeToLive >= input.timeSinceLastFrame) -> Just { s | timeToLive <- s.timeToLive - input.timeSinceLastFrame }
+                       | otherwise                                  -> Nothing
+            in
+                { prevState | sprites <- filterJust (map ageOrKillSprite prevState.sprites) }
+        afterSpritesMoved = 
+            let
+                prevState = afterExplosionsAge
             in
                 { prevState | sprites <- map (updateSprite input) prevState.sprites }
         afterCollisions =
