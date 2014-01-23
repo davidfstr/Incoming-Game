@@ -8,7 +8,8 @@ type Size = { w : Int, h : Int }
 
 type GameState = { sprites : [Sprite],
                    timeUntilNextBomb : Float,
-                   isGameOver : Bool }
+                   isGameOver : Bool,
+                   score : Int }
 -- NOTE: The 'timeToLive' field only applies to explosion-typed sprites.
 --       Unfortunately the current code structure isn't well suited to
 --       having extra fields for only certain sprites.
@@ -59,15 +60,17 @@ logoSpriteType =    { imagePath = "assets/logo.png",
                       velocity = { x = 0, y = 0 } }
 
 initialGameState : GameState
-initialGameState = let
-                       playerSprite = { position = { x = div2 (canvasSize.w - playerSpriteType.size.w),
-                                                     y = 0 },
-                                        stype = playerSpriteType,
-                                        timeToLive = immortalTimeToLive }
-                   in
-                       { sprites = [ playerSprite ],
-                         timeUntilNextBomb = 0,
-                         isGameOver = True }
+initialGameState = 
+    let
+        playerSprite = { position = { x = div2 (canvasSize.w - playerSpriteType.size.w),
+                                      y = 0 },
+                         stype = playerSpriteType,
+                         timeToLive = immortalTimeToLive }
+    in
+        { sprites = [ playerSprite ],
+          timeUntilNextBomb = 0,
+          isGameOver = True,
+          score = 0 }
 
 instructions =
     "Press Enter to begin.\n" ++
@@ -76,6 +79,9 @@ instructions =
     "The up key fires shots.\n" ++
     "Objective: Destroy bombs.\n" ++
     ""
+
+costToFireShot = 1
+rewardToKillBomb = 10
 
 -- MAIN
 
@@ -90,7 +96,14 @@ main = let
 renderGame : GameState -> Element
 renderGame gameState = 
     let
-        forms = background :: (map render gameState.sprites)
+        scoreForm =
+            move (0, div2 canvasSize.h - 15) (toForm
+                (text
+                    (Text.color white
+                        (toText ("Score: " ++ (show gameState.score))))))
+        
+        forms =
+            background :: (map render gameState.sprites) ++ [scoreForm]
         forms' = 
             if | gameState.isGameOver ->
                     let 
@@ -100,7 +113,7 @@ renderGame gameState =
                                        logoSpriteType.size.h
                                        logoSpriteType.imagePath))
                         instructionsForm = 
-                            moveY -50(toForm
+                            moveY -50 (toForm
                                 (centered
                                     (Text.bold
                                         (Text.color lightOrange
@@ -244,7 +257,9 @@ updateRunningGame input lastGameState =
                     (r.x1 <= r.x2) && (r.y1 <= r.y2)
             in
                 { prevState | sprites <- newExplosions ++
-                                         filter spriteShouldLive prevState.sprites }
+                                         filter spriteShouldLive prevState.sprites,
+                              score <- prevState.score +
+                                       (rewardToKillBomb * (length newExplosions)) }
         afterOffscreenShotsDie =
             let
                 prevState = afterCollisions
@@ -305,7 +320,8 @@ updateRunningGame input lastGameState =
                                   position = { x = shotX, y = shotY },
                                   timeToLive = immortalTimeToLive }
                         in
-                            { prevState | sprites <- newShotSprite :: prevState.sprites }
+                            { prevState | sprites <- newShotSprite :: prevState.sprites,
+                                          score <- prevState.score - costToFireShot }
                    | otherwise ->
                         prevState
     in
