@@ -7,7 +7,8 @@ type Point = { x : Float, y : Float }
 type Size = { w : Int, h : Int }
 
 type GameState = { sprites : [Sprite],
-                   timeUntilNextBomb : Float }
+                   timeUntilNextBomb : Float,
+                   isGameOver : Bool }
 -- NOTE: The 'timeToLive' field only applies to explosion-typed sprites.
 --       Unfortunately the current code structure isn't well suited to
 --       having extra fields for only certain sprites.
@@ -16,7 +17,8 @@ type SpriteType = { imagePath : String, size : Size, velocity : Point }
 
 type Input = { timeSinceLastFrame : Float,
                arrows : { x : Int, y : Int },
-               randomBombX : Float }
+               randomBombX : Float,
+               enter : Bool }
 
 -- CONSTANTS
 
@@ -25,16 +27,6 @@ canvasSize = { w = 640, h = 480 }
 
 -- Target FPS. Browsers seem to give 25fps max.
 desiredFps = 20
-
-initialGameState : GameState
-initialGameState = let
-                       playerSprite = { position = { x = div2 (canvasSize.w - playerSpriteType.size.w),
-                                                     y = 0 },
-                                        stype = playerSpriteType,
-                                        timeToLive = immortalTimeToLive }
-                   in
-                       { sprites = [ playerSprite ],
-                         timeUntilNextBomb = 0 }
 
 playerSpeed = 400 / 1000 -- px/sec
 bombSpeed = 100 / 1000   -- px/sec
@@ -62,8 +54,32 @@ explosionSpriteType =
                       size = { w = 85, h = 85 },
                       velocity = { x = 0, y = 0 } }
 
+logoSpriteType =    { imagePath = "assets/logo.png",
+                      size = { w = 440, h = 84 },
+                      velocity = { x = 0, y = 0 } }
+
+initialGameState : GameState
+initialGameState = let
+                       playerSprite = { position = { x = div2 (canvasSize.w - playerSpriteType.size.w),
+                                                     y = 0 },
+                                        stype = playerSpriteType,
+                                        timeToLive = immortalTimeToLive }
+                   in
+                       { sprites = [ playerSprite ],
+                         timeUntilNextBomb = 0,
+                         isGameOver = True }
+
+instructions =
+    "Press Enter to begin.\n" ++
+    "\n" ++
+    "Arrow keys move the player.\n" ++
+    "The up key fires shots.\n" ++
+    "Objective: Destroy bombs.\n" ++
+    ""
+
 -- MAIN
 
+main : Signal Element
 main = let
            gameStateS = foldp updateGame initialGameState inputS
        in
@@ -72,7 +88,29 @@ main = let
 -- RENDER
 
 renderGame : GameState -> Element
-renderGame gameState = collage canvasSize.w canvasSize.h (background :: (map render gameState.sprites))
+renderGame gameState = 
+    let
+        forms = background :: (map render gameState.sprites)
+        forms' = 
+            if | gameState.isGameOver ->
+                    let 
+                        logoForm = 
+                            moveY 60 (toForm
+                                (image logoSpriteType.size.w
+                                       logoSpriteType.size.h
+                                       logoSpriteType.imagePath))
+                        instructionsForm = 
+                            moveY -50(toForm
+                                (centered
+                                    (Text.bold
+                                        (Text.color lightOrange
+                                            (toText instructions)))))
+                    in
+                        forms ++ [logoForm, instructionsForm]
+               | otherwise ->
+                    forms
+    in
+        collage canvasSize.w canvasSize.h forms'
 
 background : Form
 background = filled blue (rect (toFloat canvasSize.w) (toFloat canvasSize.h))
@@ -101,7 +139,15 @@ inputS : Signal Input
 inputS =
     let
         timeSinceLastFrameS = fps desiredFps
-        arrowsS = Keyboard.wasd
+        arrowsS = 
+            let
+                mergeArrows a1 a2 =
+                    { x = if | a1.x /= 0 -> a1.x
+                             | otherwise -> a2.x,
+                      y = if | a1.y /= 0 -> a1.y
+                             | otherwise -> a2.y }
+            in
+                lift2 mergeArrows Keyboard.arrows Keyboard.wasd
         randomBombXS = 
             let
                 maxBombX = canvasSize.w - bombSpriteType.size.w
@@ -109,10 +155,14 @@ inputS =
                 -- NOTE: Using Random.float instead of Random.range because
                 --       Random.float gives a runtime error.
                 lift toFloat (Random.range 0 maxBombX timeSinceLastFrameS)
+        enterS = Keyboard.enter
         
-        liveInputS = lift3 (\dt a rbx -> 
-            { timeSinceLastFrame = dt, arrows = a, randomBombX = rbx })
-            timeSinceLastFrameS arrowsS randomBombXS
+        liveInputS = lift4 (\dt a rbx e -> 
+            { timeSinceLastFrame = dt,
+              arrows = a,
+              randomBombX = rbx,
+              enter = e })
+            timeSinceLastFrameS arrowsS randomBombXS enterS
     in
         sampleOn timeSinceLastFrameS liveInputS
 
@@ -120,6 +170,18 @@ inputS =
 
 updateGame : Input -> GameState -> GameState
 updateGame input lastGameState = 
+    -- NOTE: Hanging paren needed to disambiguate the "otherwise" clauses
+    if | lastGameState.isGameOver -> (
+            if | input.enter ->
+                    -- Reset game state
+                    { initialGameState | isGameOver <- False }
+               | otherwise ->
+                    lastGameState )
+       | otherwise ->
+            updateRunningGame input lastGameState
+
+updateRunningGame : Input -> GameState -> GameState
+updateRunningGame input lastGameState = 
     let
         afterExplosionsAge =
             let
@@ -151,16 +213,8 @@ updateGame input lastGameState =
                     let 
                         makeExplosionIfDead s =
                             if | spriteShouldDie s && s.stype == bombSpriteType
-                                           -> Just (makeExplosionFor s)
+                                           -> Just (makeExplosionForBomb s)
                                | otherwise -> Nothing
-                        
-                        makeExplosionFor : Sprite -> Sprite
-                        makeExplosionFor s =
-                            { stype = explosionSpriteType,
-                                           -- Center explosion on tip of bomb
-                              position = { x = s.position.x + (div2 (s.stype.size.w - explosionSpriteType.size.w)),
-                                           y = s.position.y - (div2 explosionSpriteType.size.h)},
-                              timeToLive = explosionInitialTimeToLive }
                     in
                         filterJust (map makeExplosionIfDead prevState.sprites)
                 
@@ -191,17 +245,35 @@ updateGame input lastGameState =
             in
                 { prevState | sprites <- newExplosions ++
                                          filter spriteShouldLive prevState.sprites }
-        afterOffscreenSpritesDie =
+        afterOffscreenShotsDie =
             let
                 prevState = afterCollisions
                 spriteShouldDie s = 
-                    (s.position.y < 0) || (s.position.y > (toFloat canvasSize.h))
+                    (s.position.y > (toFloat canvasSize.h))
                 spriteShouldLive s = not (spriteShouldDie s)
             in
                 { prevState | sprites <- filter spriteShouldLive prevState.sprites }
+        afterBombsHitGround =
+            let
+                prevState = afterOffscreenShotsDie
+                
+                isBombOnGround s =
+                    (s.stype == bombSpriteType) &&
+                    (s.position.y <= 0)
+                bombsThatHitGround = filter isBombOnGround prevState.sprites
+            in
+                if | bombsThatHitGround /= [] ->
+                        let
+                            deathBomb = head bombsThatHitGround
+                            deathExplosion = makeExplosionForBomb deathBomb
+                        in
+                            { prevState | isGameOver <- True,
+                                          sprites <- deathExplosion :: 
+                                                     disj prevState.sprites deathBomb }
+                   | otherwise -> prevState
         afterBombSpawn = 
             let
-                prevState = afterOffscreenSpritesDie
+                prevState = afterBombsHitGround
                 shouldSpawnBomb = (prevState.timeUntilNextBomb <= 0)
             in
                 if | shouldSpawnBomb ->
@@ -238,7 +310,14 @@ updateGame input lastGameState =
                         prevState
     in
         afterShotSpawn
-        
+
+-- Creates an explosion centered on the tip of the specified bomb.
+makeExplosionForBomb : Sprite -> Sprite
+makeExplosionForBomb s =
+    { stype = explosionSpriteType,
+      position = { x = s.position.x + (div2 (s.stype.size.w - explosionSpriteType.size.w)),
+                   y = s.position.y - (div2 explosionSpriteType.size.h)},
+      timeToLive = explosionInitialTimeToLive }
 
 updateSprite : Input -> Sprite -> Sprite
 updateSprite input s = 
@@ -267,3 +346,6 @@ filterJust maybes =
         Just x :: rest  -> x :: filterJust rest
         Nothing :: rest -> filterJust rest
         []              -> []
+
+disj : [a] -> a -> [a]
+disj list victim = filter (\x -> x /= victim) list
