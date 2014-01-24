@@ -2,7 +2,7 @@
 
 In this game you try to shoot falling bombs before they crash down to Earth and explode. You get points for destroying bombs but lose points for firing unnecessary shots.
 
-<img title="Screenshot of the &quot;Incoming&quot; game" src="https://raw.github.com/davidfstr/Incoming-Game/master/screenshot.png" width="639" height="480">
+![Screenshot of the "Incoming" game](screenshot.png)
 
 I wrote this game as an experiment to write a non-trivial program in [Elm], a concept language for demonstrating [functional reactive programming].
 
