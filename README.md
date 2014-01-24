@@ -21,6 +21,11 @@ Take a look at this game's source code if you are interested in reading a modera
 * In the cloned directory, open a terminal window and run the command `elm-server`.
 * Open a web browser and go to <http://localhost:8000/Main.elm>
 
+## How to Distribute
+
+* In the cloned directory, open a terminal window and run the command `./make.sh`.
+* Copy the generated `build` directory to any static webserver.
+
 ## License
 
 Copyright &copy; 2014 by David Foster
