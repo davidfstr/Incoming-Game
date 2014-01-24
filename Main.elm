@@ -59,6 +59,11 @@ logoSpriteType =    { imagePath = "assets/logo.png",
                       size = { w = 440, h = 84 },
                       velocity = { x = 0, y = 0 } }
 
+backgroundSpriteType =
+                    { imagePath = "assets/background.png",
+                      size = { w = 639, h = 480 },
+                      velocity = { x = 0, y = 0 } }
+
 initialGameState : GameState
 initialGameState = 
     let
@@ -96,14 +101,22 @@ main = let
 renderGame : GameState -> Element
 renderGame gameState = 
     let
+        backgroundForm = 
+            move (0, 0)
+                (toForm
+                    (image backgroundSpriteType.size.w
+                           backgroundSpriteType.size.h
+                           backgroundSpriteType.imagePath))
+        simpleBackgroundForm = filled blue (
+            rect (toFloat canvasSize.w) (toFloat canvasSize.h))
         scoreForm =
             move (0, div2 canvasSize.h - 15) (toForm
                 (text
-                    (Text.color white
+                    (Text.color black
                         (toText ("Score: " ++ (show gameState.score))))))
         
         forms =
-            background :: (map render gameState.sprites) ++ [scoreForm]
+            backgroundForm :: (map render gameState.sprites) ++ [scoreForm]
         forms' = 
             if | gameState.isGameOver ->
                     let 
@@ -116,7 +129,7 @@ renderGame gameState =
                             moveY -50 (toForm
                                 (centered
                                     (Text.bold
-                                        (Text.color lightOrange
+                                        (Text.color orange
                                             (toText instructions)))))
                     in
                         forms ++ [logoForm, instructionsForm]
@@ -124,9 +137,6 @@ renderGame gameState =
                     forms
     in
         collage canvasSize.w canvasSize.h forms'
-
-background : Form
-background = filled blue (rect (toFloat canvasSize.w) (toFloat canvasSize.h))
 
 render : Sprite -> Form
 render s = let
@@ -283,8 +293,8 @@ updateRunningGame input lastGameState =
                             deathExplosion = makeExplosionForBomb deathBomb
                         in
                             { prevState | isGameOver <- True,
-                                          sprites <- deathExplosion :: 
-                                                     disj prevState.sprites deathBomb }
+                                          sprites <- disj prevState.sprites deathBomb ++
+                                                     [deathExplosion] }
                    | otherwise -> prevState
         afterBombSpawn = 
             let
