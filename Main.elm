@@ -28,7 +28,7 @@ canvasSize : Size
 canvasSize = { w = 640, h = 480 }
 
 -- Target FPS. Browsers seem to give 25fps max.
-desiredFps = 20
+desiredFps = 25
 
 playerSpeed = 400 / 1000 -- px/sec
 bombSpeed = 100 / 1000   -- px/sec
