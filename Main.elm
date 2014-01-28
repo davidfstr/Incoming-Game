@@ -19,7 +19,8 @@ type SpriteType = { imagePath : String, size : Size, velocity : Point }
 type Input = { timeSinceLastFrame : Float,
                arrows : { x : Int, y : Int },
                randomBombX : Float,
-               enter : Bool }
+               enter : Bool,
+               space : Bool }
 
 -- CONSTANTS
 
@@ -81,7 +82,7 @@ instructions =
     "Press Enter to begin.\n" ++
     "\n" ++
     "Arrow keys move the player.\n" ++
-    "The up key fires shots.\n" ++
+    "The space and up keys fire shots.\n" ++
     "Objective: Destroy bombs.\n" ++
     ""
 
@@ -179,13 +180,15 @@ inputS =
                 --       Random.float gives a runtime error.
                 lift toFloat (Random.range 0 maxBombX timeSinceLastFrameS)
         enterS = Keyboard.enter
+        spaceS = Keyboard.space
         
-        liveInputS = lift4 (\dt a rbx e -> 
+        liveInputS = lift5 (\dt a rbx e s -> 
             { timeSinceLastFrame = dt,
               arrows = a,
               randomBombX = rbx,
-              enter = e })
-            timeSinceLastFrameS arrowsS randomBombXS enterS
+              enter = e,
+              space = s })
+            timeSinceLastFrameS arrowsS randomBombXS enterS spaceS
     in
         sampleOn timeSinceLastFrameS liveInputS
 
@@ -315,7 +318,7 @@ updateRunningGame input lastGameState =
         afterShotSpawn =
             let
                 prevState = afterBombSpawn
-                shouldSpawnShot = (input.arrows.y == 1)
+                shouldSpawnShot = (input.arrows.y == 1) || input.space
             in
                 if | shouldSpawnShot ->
                         let newShotSprite =
