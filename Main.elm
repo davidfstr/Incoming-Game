@@ -1,5 +1,6 @@
 import Keyboard
 import Random
+import String
 
 -- TYPES
 
@@ -9,7 +10,8 @@ type Size = { w : Int, h : Int }
 type GameState = { sprites : [Sprite],
                    timeUntilNextBomb : Float,
                    isGameOver : Bool,
-                   score : Int }
+                   score : Int,
+                   gameTimeLeft : Float }
 -- NOTE: The 'timeToLive' field only applies to explosion-typed sprites.
 --       Unfortunately the current code structure isn't well suited to
 --       having extra fields for only certain sprites.
@@ -30,9 +32,9 @@ canvasSize = { w = 640, h = 480 }
 -- Target FPS. Browsers seem to give 25fps max.
 desiredFps = 25
 
-playerSpeed = 400 / 1000 -- px/sec
-bombSpeed = 100 / 1000   -- px/sec
-shotSpeed = 300 / 1000   -- px/sec
+playerSpeed = 400 / 1000 -- px/ms
+bombSpeed = 100 / 1000   -- px/ms
+shotSpeed = 300 / 1000   -- px/ms
 
 timeBetweenBombs = 1000 -- ms
 
@@ -76,7 +78,8 @@ initialGameState =
         { sprites = [ playerSprite ],
           timeUntilNextBomb = 0,
           isGameOver = True,
-          score = 0 }
+          score = 0,
+          gameTimeLeft = timePerGame }
 
 instructions =
     "Press Enter to begin.\n" ++
@@ -88,6 +91,8 @@ instructions =
 
 costToFireShot = 1
 rewardToKillBomb = 10
+
+timePerGame = 2 * 60 * 1000 -- ms
 
 -- MAIN
 
@@ -111,13 +116,23 @@ renderGame gameState =
         simpleBackgroundForm = filled blue (
             rect (toFloat canvasSize.w) (toFloat canvasSize.h))
         scoreForm =
-            move (0, div2 canvasSize.h - 15) (toForm
+            move (0, div2 canvasSize.h - 15 - 20) (toForm
                 (text
                     (Text.color black
                         (toText ("Score: " ++ (show gameState.score))))))
+        timeLeftForm =
+            let
+                secondsLeft = ceiling (gameState.gameTimeLeft / 1000)
+                mm = show (div secondsLeft 60)
+                ss = String.padLeft 2 '0' (show (rem secondsLeft 60))
+            in
+                move (0, div2 canvasSize.h - 15) (toForm
+                    (text
+                        (Text.color black
+                            (toText ("Time: " ++ mm ++ ":" ++ ss)))))
         
         forms =
-            backgroundForm :: (map render gameState.sprites) ++ [scoreForm]
+            [backgroundForm] ++ (map render gameState.sprites) ++ [scoreForm, timeLeftForm]
         forms' = 
             if | gameState.isGameOver ->
                     let 
@@ -337,8 +352,17 @@ updateRunningGame input lastGameState =
                                           score <- prevState.score - costToFireShot }
                    | otherwise ->
                         prevState
+        afterGameAges =
+            let
+                prevState = afterShotSpawn
+            in
+                if | prevState.gameTimeLeft <= input.timeSinceLastFrame ->
+                        { prevState | gameTimeLeft <- 0,
+                                      isGameOver <- True }
+                   | otherwise ->
+                        { prevState | gameTimeLeft <- prevState.gameTimeLeft - input.timeSinceLastFrame }
     in
-        afterShotSpawn
+        afterGameAges
 
 -- Creates an explosion centered on the tip of the specified bomb.
 makeExplosionForBomb : Sprite -> Sprite
